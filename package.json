@@ -1,0 +1,13 @@
+{
+  "name": "elife-stellar",
+  "version": "0.1.0",
+  "description": "Manages the Stellar Chain for the Avatar",
+  "main": "index.js",
+  "author": "charles.lobo@gmail.com",
+  "license": "MIT",
+  "dependencies": {
+    "cote": "^0.18.0",
+    "luminate": "theproductiveprogrammer/luminate",
+    "read": "^1.0.7"
+  }
+}
