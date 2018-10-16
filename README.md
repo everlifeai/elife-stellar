@@ -12,22 +12,23 @@ In order to safeguard the wallet, it is password protected. So that the
 user does not need to type in this password again and again it needs to
 be saved once. In order to do this you need to do the following:
 
-1. Start the node
+1. Load the node
 
-        ./run.sh avatar
+        $> ./run.sh load
 
-2. Enter the node
+2. Go to the Stellar Server
 
-        ./run.sh enter
+        # cd services/elife-stellar
 
-3. Go to the Stellar Server
+3. Run the password manager
 
-        cd services/elife-stellar
+        # node pw
 
-4. Run the password manager
+4. Exit and start the avatar
 
-        node pw
+        # exit
 
+        $> ./run.sh avatar
 
 When prompted for the password, pick a good password that you are
 comfortable with. PLEASE REMEMBER THIS PASSWORD AS IT **CANNOT BE
