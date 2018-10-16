@@ -333,7 +333,7 @@ long@^2.2.3:
 
 luminate@theproductiveprogrammer/luminate:
   version "1.0.0"
-  resolved "https://codeload.github.com/theproductiveprogrammer/luminate/tar.gz/cd3201591c1b5e60ecfdcc8783fca27338f74b24"
+  resolved "https://codeload.github.com/theproductiveprogrammer/luminate/tar.gz/ee7318dc609fc19bc1e021650c7f70a74fa186ae"
   dependencies:
     base32 "^0.0.6"
     chalk "^2.4.1"

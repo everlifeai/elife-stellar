@@ -42,6 +42,7 @@ function loadConfig(cb) {
                         let cfg = {
                             pw: pw,
                             wallet_dir: path.join(__dirname, 'stellar'),
+                            horizon: 'test', // TODO: Enable 'live' stellar network integration
                         }
                         cb(null, cfg)
                     }
@@ -79,7 +80,7 @@ function loadAccount(cfg, cb) {
     function load_wallet_1() {
         luminate.wallet.load(cfg.pw, cfg.wallet_dir, WALLET_NAME, (err, acc) => {
             if(err) cb(err)
-            else cb(null, acc.pub)
+            else cb(null, acc)
         })
     }
 
@@ -103,6 +104,21 @@ function startMicroservice(cfg, acc) {
     })
 
     svc.on('account-id', (req, cb) => {
-        cb(null, acc)
+        cb(null, acc.pub)
     })
+
+    svc.on('setup-ever-trustline', (req, cb) => {
+        setupEVERTrustline(cfg, acc, cb)
+    })
+}
+
+function setupEVERTrustline(cfg, acc, cb) {
+    luminate.stellar.setTrustline(
+        cfg.horizon,
+        acc,
+        'EVER',
+        'GC6EGBRQQKWMQF6MV2GBKDXCHOOV33VO77RUJJUB2KL6VXZYM3U4FG23',
+        //TODO: USE LIVE ISSUER: 'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CUSP5NC2R6D6WQ47JBLG6DF5TE',
+        cb
+    )
 }
