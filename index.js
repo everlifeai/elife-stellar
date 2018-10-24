@@ -41,7 +41,7 @@ function loadConfig(cb) {
                         let pw = luminate.crypt.decrypt(s.pw, s.nonce, key)
                         let cfg = {
                             pw: pw,
-                            wallet_dir: path.join(__dirname, 'stellar'),
+                            wallet_dir: path.join('/data', 'stellar'),
                             horizon: 'test', // TODO: Enable 'live' stellar network integration
                         }
                         cb(null, cfg)
