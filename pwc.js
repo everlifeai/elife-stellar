@@ -14,6 +14,6 @@
  * TODO: Find a better way to manage password
  */
 module.exports = {
-    PASSWORD_FILE: ".luminate-pw",
+    PASSWORD_FILE: "/data/.luminate-pw",
     PASSWORD_ENC: "n9824bdS#MD",
 }
