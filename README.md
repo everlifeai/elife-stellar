@@ -14,7 +14,7 @@ be saved once. In order to do this you need to do the following:
 
 1. Load the node
 
-        $> ./run.sh load
+        $> ./run.sh enter
 
 2. Go to the Stellar Server
 
