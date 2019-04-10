@@ -1,4 +1,6 @@
 'use strict'
+const path = require('path')
+const u = require('elife-utils')
 
 /*      problem/
  * The node has a stellar account that it uses to earn. This account is
@@ -14,6 +16,6 @@
  * TODO: Find a better way to manage password
  */
 module.exports = {
-    PASSWORD_FILE: "/data/.luminate-pw",
+    PASSWORD_FILE: path.join(u.dataLoc(), '.luminate-pw'),
     PASSWORD_ENC: "n9824bdS#MD",
 }
