@@ -19,7 +19,10 @@ function main() {
         else {
             loadAccount(cfg, (err, acc) => {
                 if(err) u.showErr(err)
-                else startMicroservice(cfg, acc)
+                else {
+                    startMicroservice(cfg, acc)
+                    registerWithCommMgr()
+                }
             })
         }
     })
@@ -92,6 +95,9 @@ function loadAccount(cfg, cb) {
     }
 }
 
+/* microservice key (identity of the microservice) */
+let msKey = 'everlife-stellar-svc'
+
 function startMicroservice(cfg, acc) {
 
     /*      understand/
@@ -100,7 +106,7 @@ function startMicroservice(cfg, acc) {
      */
     const svc = new cote.Responder({
         name: 'Everlife Stellar Service',
-        key: 'everlife-stellar-svc',
+        key: msKey,
     })
 
     svc.on('account-id', (req, cb) => {
@@ -109,6 +115,10 @@ function startMicroservice(cfg, acc) {
 
     svc.on('setup-ever-trustline', (req, cb) => {
         setupEVERTrustline(cfg, acc, cb)
+    })
+
+    svc.on('msg', (req, cb) => {
+        handleStellarCommands(cfg, acc, req, cb)
     })
 }
 
@@ -122,3 +132,110 @@ function setupEVERTrustline(cfg, acc, cb) {
         cb
     )
 }
+
+/*      outcome/
+ * Check if we can handle the commands that the user has given otherwise
+ * let the control pass on.
+ */
+function handleStellarCommands(cfg, acc, req, cb) {
+    let d = {
+        '/wallet_save_keys': saveAccountKeys,
+        '/wallet_set_trustline': walletSetTrustline,
+    }
+
+    let fn = d[req.msg]
+    if(!fn) return cb()
+    else {
+        cb(null, true)
+        fn(cfg, acc, req)
+    }
+}
+
+/*      problem/
+ * The stellar account keys are stored securely in our avatar's luminate
+ * wallet. However, the owner may want direct access to the wallet
+ * because we haven't provided some functionality or for some other
+ * reason.
+ *
+ *      way/
+ * We will dump the wallet key pair into a plain-text/JSON-ish file on
+ * disk like this:
+ *
+ * # This is your Stellar Wallet SECRET
+ * # Anyone with this information can control your wallet.
+ * #
+ * # Do not share this with anyone!!!
+ *
+ * {
+ *    "public": "GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CUSP5NC2R6D6WQ47JBLG6DF5TE",
+ *    "secret": "SBETEA3Z3OYHLSKKZWBVXQSX7NKTWCEQMUWOEITXMQVBKUOR5ZMCIE3I"
+ * }
+ */
+function saveAccountKeys(cfg, acc, req) {
+    let s = secret_file_name_1()
+    fs.writeFile(s, `# This is your Stellar Wallet SECRET
+# Anyone with this information can control your wallet.
+#
+# Do not share this with anyone!!!
+
+{
+    "public": "${acc._kp.publicKey()}",
+    "secret": "${acc._kp.secret()}"
+}
+`, (err) => {
+    if(err) {
+        u.showErr(err)
+        sendReply(`Failed writing file`, req)
+    } else {
+        sendReply(`Exported your wallet to: "${s}"`, req)
+    }
+})
+
+    function secret_file_name_1() {
+        return path.join(u.dataLoc(), 'stellar-wallet-export')
+    }
+}
+
+function walletSetTrustline(cfg, acc, req) {
+    setupEVERTrustline(cfg, acc, (err) => {
+        if(err) {
+            u.showErr(err)
+            sendReply(`Error setting EVER trustline`, req)
+        } else {
+            sendReply(`Congratulations! EVER trustline set!`, req)
+        }
+    })
+}
+
+
+const commMgrClient = new cote.Requester({
+    name: 'Calculator -> CommMgr',
+    key: 'everlife-communication-svc',
+})
+
+function sendReply(msg, req) {
+    req.type = 'reply'
+    req.msg = String(msg)
+    commMgrClient.send(req, (err) => {
+        if(err) u.showErr(err)
+    })
+}
+
+/*      outcome/
+ * Register ourselves as a message handler with the communication
+ * manager so we can handle requests
+ */
+function registerWithCommMgr() {
+    commMgrClient.send({
+        type: 'register-msg-handler',
+        mskey: msKey,
+        mstype: 'msg',
+        mshelp: [
+            { cmd: '/wallet_set_trustline', txt: 'setup EVER trustline' },
+            { cmd: '/wallet_save_keys', txt: 'save/export wallet keys' },
+        ],
+    }, (err) => {
+        if(err) u.showErr(err)
+    })
+}
+
