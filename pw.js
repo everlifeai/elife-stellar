@@ -1,6 +1,6 @@
 'use strict'
 const read = require('read')
-const luminate = require('luminate')
+const luminate = require('@tpp/luminate')
 const fs = require('fs')
 
 const pwc = require('./pwc')

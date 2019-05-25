@@ -3,7 +3,7 @@ const cote = require('cote')({statusLogsEnabled:false})
 const fs = require('fs')
 const path = require('path')
 const u = require('elife-utils')
-const luminate = require('luminate')
+const luminate = require('@tpp/luminate')
 
 const pwc = require('./pwc')
 

@@ -6,8 +6,9 @@
   "author": "charles.lobo@gmail.com",
   "license": "MIT",
   "dependencies": {
+    "@tpp/luminate": "^2.1.1",
     "cote": "^0.18.0",
-    "luminate": "theproductiveprogrammer/luminate",
+    "elife-utils": "everlifeai/elife-utils",
     "read": "^1.0.7"
   }
 }
