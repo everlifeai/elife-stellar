@@ -113,12 +113,34 @@ function startMicroservice(cfg, acc) {
         cb(null, acc.pub)
     })
 
+    svc.on('balance', (req, cb) => {
+        getAccountBalance(cfg, acc, cb)
+    })
+
     svc.on('setup-ever-trustline', (req, cb) => {
         setupEVERTrustline(cfg, acc, cb)
     })
 
     svc.on('msg', (req, cb) => {
         handleStellarCommands(cfg, acc, req, cb)
+    })
+}
+
+function getAccountBalance(cfg, acc, cb) {
+    luminate.stellar.status(cfg.horizon, acc, (err, ai) => {
+        if(err) cb(err)
+        else {
+            let bal = {xlm:0,ever:0}
+            if(!ai.balances || !ai.balances.length) return cb(null, bal)
+            for(let i = 0;i < ai.balances.length;i++) {
+                let b = ai.balances[i]
+                if(b.asset_type == 'native') bal.xlm = b.balance
+                if(b.asset_code == 'EVER'
+                    && b.asset_issuer == 'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CUSP5NC2R6D6WQ47JBLG6DF5TE') bal.ever = b.balance
+
+            }
+            cb(null, bal)
+        }
     })
 }
 
