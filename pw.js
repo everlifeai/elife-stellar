@@ -17,7 +17,7 @@ function main() {
         if(!err) console.log(`Password file already exists`)
         else {
             getUserPw((err,pw) => {
-                if(err) u.showErr(err)
+                if(err) console.error(err)
                 else savePw(pw, pwc.PASSWORD_FILE, (err) => {
                     if(err) console.error(err)
                     else console.log(`Password saved`)
@@ -32,7 +32,19 @@ function getUserPw(cb) {
     read({
         prompt: "Password:",
         silent: true,
-    }, cb)
+    }, (err, pw) => {
+        if(err) cb(err)
+        else read({
+            prompt: "Confirm Password:",
+            silent: true,
+        }, (err, pw2) => {
+            if(err) cb(err)
+            else {
+                if(pw != pw2) cb('Passwords do not match!')
+                else return cb(null, pw)
+            }
+        })
+    })
 }
 
 /*      outcome/
