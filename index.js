@@ -8,22 +8,45 @@ const luminate = require('@tpp/luminate')
 const pwc = require('./pwc')
 
 const EVER_ISSUER = process.env.EVER_ISSUER || 'GBKSIXNHYREDENMXFNL5XXIYG6UVBEJIKINYWYGTUR46MPZMGQKOM522'
+
+/*    understand/
+ * Microservice key (identity of the microservice)
+ */
+let msKey = 'everlife-stellar-svc'
+
+/*    understand/
+ * Keep track if we have been able to get the user password or not
+ */
+let GOT_USER_PW = false
+
+
 /*      understand/
  * This is the main entry point where we start.
  *
  *      outcome/
- * Load configuration and start the microservice
+ * Start the microservice and load the stellar wallet
  */
 function main() {
-    loadConfig((err, cfg) => {
-        if(err) u.showErr(err)
+    let msinfo = {
+        cfg: null,
+        acc: null,
+    }
+    startMicroservice(msinfo)
+    loadWallet(msinfo, (err) => {
+        u.showErr(err)
+    })
+}
+
+function loadWallet(msinfo, cb) {
+    loadConfig(msinfo, (err) => {
+        if(err) cb(err)
         else {
-            loadAccount(cfg, (err, acc) => {
-                if(err) u.showErr(err)
+            loadAccount(msinfo, (err) => {
+                if(err) cb(err)
                 else {
-                    loadMetaData(cfg)
-                    startMicroservice(cfg, acc)
+                    loadMetaData(msinfo.cfg)
                     registerWithCommMgr()
+                    cb()
                 }
             })
         }
@@ -34,26 +57,20 @@ main()
 /*      outcome/
  * Load the password from an encrypted file
  */
-function loadConfig(cb) {
-    fs.readFile(pwc.PASSWORD_FILE, 'utf8', (err, data) => {
+function loadConfig(msinfo, cb) {
+    GOT_USER_PW = false
+    pwc.loadPw((err, pw) => {
         if(err) cb(err)
         else {
-            try {
-                let s = JSON.parse(data)
-                luminate.crypt.password2key(s.salt, pwc.PASSWORD_ENC, (err, key) => {
-                    if(err) cb(err)
-                    else {
-                        let pw = luminate.crypt.decrypt(s.pw, s.nonce, key)
-                        let cfg = {
-                            pw: pw,
-                            wallet_dir: path.join(u.dataLoc(), 'stellar'),
-                            horizon: 'test', // TODO: Enable 'live' stellar network integration
-                        }
-                        cb(null, cfg)
-                    }
-                })
-            } catch(e) {
-                cb(e)
+            if(!pw) cb(`Failed loading wallet password`)
+            else {
+                GOT_USER_PW = true
+                msinfo.cfg = {
+                    pw: pw,
+                    wallet_dir: path.join(u.dataLoc(), 'stellar'),
+                    horizon: 'test', // TODO: Enable 'live' stellar network integration
+                }
+                cb()
             }
         }
     })
@@ -63,10 +80,10 @@ function loadConfig(cb) {
  * Look for the wallet account and load it if found. Otherwise create a
  * new wallet account for this avatar.
  */
-function loadAccount(cfg, cb) {
+function loadAccount(msinfo, cb) {
     const WALLET_NAME = 'wallet'
 
-    luminate.wallet.list(cfg.wallet_dir, (err, accs, errs) => {
+    luminate.wallet.list(msinfo.cfg.wallet_dir, (err, accs, errs) => {
         if(err) cb(err)
         else {
             if(errs && errs.length) u.showErr(errs) // only display problems in wallet dir
@@ -83,24 +100,27 @@ function loadAccount(cfg, cb) {
     })
 
     function load_wallet_1() {
-        luminate.wallet.load(cfg.pw, cfg.wallet_dir, WALLET_NAME, (err, acc) => {
+        luminate.wallet.load(msinfo.cfg.pw, msinfo.cfg.wallet_dir, WALLET_NAME, (err, acc) => {
             if(err) cb(err)
-            else cb(null, acc)
+            else {
+                msinfo.acc = acc
+                cb(null)
+            }
         })
     }
 
     function create_wallet_1() {
-        luminate.wallet.create(cfg.pw, cfg.wallet_dir, WALLET_NAME, (err, acc) => {
+        luminate.wallet.create(msinfo.cfg.pw, msinfo.cfg.wallet_dir, WALLET_NAME, (err, acc) => {
             if(err) cb(err)
-            else cb(null, acc)
+            else {
+                msinfo.acc = acc
+                cb(null)
+            }
         })
     }
 }
 
-/* microservice key (identity of the microservice) */
-let msKey = 'everlife-stellar-svc'
-
-function startMicroservice(cfg, acc) {
+function startMicroservice(msinfo) {
 
     /*      understand/
      * The microservice (partitioned by key to prevent conflicting with
@@ -112,29 +132,35 @@ function startMicroservice(cfg, acc) {
     })
 
     svc.on('account-id', (req, cb) => {
-        cb(null, acc.pub)
+        getAccountId(msinfo.acc, cb)
     })
 
     svc.on('balance', (req, cb) => {
-        getAccountBalance(cfg, acc, cb)
+        getAccountBalance(msinfo.cfg, msinfo.acc, cb)
     })
 
     svc.on('setup-ever-trustline', (req, cb) => {
-        setupEVERTrustline(cfg, acc, cb)
+        setupEVERTrustline(msinfo.cfg, msinfo.acc, cb)
     })
 
     svc.on('msg', (req, cb) => {
-        handleStellarCommands(cfg, acc, req, cb)
+        handleStellarCommands(msinfo.cfg, msinfo.acc, req, cb)
     })
 
     svc.on('issuer-meta-data', getIssuerMetaData)
     svc.on('pay-ever', (req,cb) =>{
-        payEver(cfg, acc, req, cb)
+        payEver(msinfo.cfg, msinfo.acc, req, cb)
 
     })
 }
 
+function getAccountId(acc, cb) {
+    if(!acc) return cb({ error: 'Wallet not loaded!', nopw: !GOT_USER_PW })
+    cb(null, acc.pub)
+}
+
 function getAccountBalance(cfg, acc, cb) {
+    if(!cfg || !acc) return cb({ error: 'Wallet not loaded!', nopw: !GOT_USER_PW })
     luminate.stellar.status(cfg.horizon, acc, (err, ai) => {
         if(err) cb(err)
         else {
@@ -153,6 +179,7 @@ function getAccountBalance(cfg, acc, cb) {
 }
 
 function setupEVERTrustline(cfg, acc, cb) {
+    if(!cfg || !acc) return cb({ error: 'Wallet not loaded!', nopw: !GOT_USER_PW })
     luminate.stellar.setTrustline(
         cfg.horizon,
         acc,
@@ -177,7 +204,8 @@ function handleStellarCommands(cfg, acc, req, cb) {
     if(!fn) return cb()
     else {
         cb(null, true)
-        fn(cfg, acc, req)
+        if(!cfg || !acc) sendReply('Wallet not loaded!')
+        else fn(cfg, acc, req)
     }
 }
 
@@ -202,6 +230,7 @@ function handleStellarCommands(cfg, acc, req, cb) {
  * }
  */
 function saveAccountKeys(cfg, acc, req) {
+    if(!cfg || !acc) return sendReply('Wallet not loaded!')
     let s = secret_file_name_1()
     fs.writeFile(s, `# This is your Stellar Wallet SECRET
 # Anyone with this information can control your wallet.
@@ -227,6 +256,7 @@ function saveAccountKeys(cfg, acc, req) {
 }
 
 function walletSetTrustline(cfg, acc, req) {
+    if(!cfg || !acc) return sendReply('Wallet not loaded!')
     setupEVERTrustline(cfg, acc, (err) => {
         if(err) {
             u.showErr(err)
@@ -284,6 +314,7 @@ function getIssuerMetaData(req,cb){
 }
 
 function payEver(cfg, acc, req, cb){
+    if(!cfg || !acc) return cb({ error: 'Wallet not loaded!', nopw: !GOT_USER_PW })
     luminate.stellar.pay(cfg.horizon, acc, 'EVER', req.amt, { pub: EVER_ISSUER }, null, (err) =>{
         cb(err)
     })

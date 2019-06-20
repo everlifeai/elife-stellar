@@ -1,5 +1,7 @@
 'use strict'
 const path = require('path')
+const fs = require('fs')
+const luminate = require('@tpp/luminate')
 const u = require('elife-utils')
 
 /*      problem/
@@ -16,6 +18,57 @@ const u = require('elife-utils')
  * TODO: Find a better way to manage password
  */
 module.exports = {
-    PASSWORD_FILE: path.join(u.dataLoc(), '.luminate-pw'),
-    PASSWORD_ENC: "n9824bdS#MD",
+    savePw: savePw,
+    loadPw: loadPw,
+}
+
+let PASSWORD_FILE = path.join(u.dataLoc(), '.luminate-pw')
+let PASSWORD_ENC = "n9824bdS#MD"
+
+/*      outcome/
+ * Encrypt the given password and save it (along with it's nonce) as a
+ * javascript object.
+ */
+function savePw(pw, cb) {
+    if(!pw || !pw.trim()) cb(`No password provided`)
+    else {
+        let salt = luminate.crypt.createSalt()
+        let nonce = luminate.crypt.createNonce()
+
+        luminate.crypt.password2key(salt, PASSWORD_ENC, (err, key) => {
+            if(err) cb(err)
+            else {
+                let enc = luminate.crypt.encrypt(pw, nonce, key)
+                let s = {
+                    salt: salt,
+                    nonce: nonce,
+                    pw: enc,
+                }
+                fs.writeFile(PASSWORD_FILE, JSON.stringify(s,null,2), 'utf-8', cb)
+            }
+        })
+    }
+}
+
+/*      outcome/
+ * Load the password from the password file, decrypt and return it.
+ */
+function loadPw(cb) {
+    fs.readFile(PASSWORD_FILE, 'utf8', (err, data) => {
+        if(err) cb(err)
+        else {
+            try {
+                let s = JSON.parse(data)
+                luminate.crypt.password2key(s.salt, PASSWORD_ENC, (err, key) => {
+                    if(err) cb(err)
+                    else {
+                        let pw = luminate.crypt.decrypt(s.pw, s.nonce, key)
+                        cb(null, pw)
+                    }
+                })
+            } catch(e) {
+                cb(e)
+            }
+        }
+    })
 }
