@@ -7,6 +7,7 @@ const luminate = require('@tpp/luminate')
 
 const pwc = require('./pwc')
 
+const EVER_ISSUER = process.env.EVER_ISSUER || 'GBKSIXNHYREDENMXFNL5XXIYG6UVBEJIKINYWYGTUR46MPZMGQKOM522'
 /*      understand/
  * This is the main entry point where we start.
  *
@@ -20,6 +21,7 @@ function main() {
             loadAccount(cfg, (err, acc) => {
                 if(err) u.showErr(err)
                 else {
+                    loadMetaData(cfg)
                     startMicroservice(cfg, acc)
                     registerWithCommMgr()
                 }
@@ -124,6 +126,12 @@ function startMicroservice(cfg, acc) {
     svc.on('msg', (req, cb) => {
         handleStellarCommands(cfg, acc, req, cb)
     })
+
+    svc.on('issuer-meta-data', getIssuerMetaData)
+    svc.on('pay-ever', (req,cb) =>{
+        payEver(cfg, acc, req, cb)
+
+    })
 }
 
 function getAccountBalance(cfg, acc, cb) {
@@ -136,7 +144,7 @@ function getAccountBalance(cfg, acc, cb) {
                 let b = ai.balances[i]
                 if(b.asset_type == 'native') bal.xlm = b.balance
                 if(b.asset_code == 'EVER'
-                    && b.asset_issuer == 'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CUSP5NC2R6D6WQ47JBLG6DF5TE') bal.ever = b.balance
+                    && b.asset_issuer == EVER_ISSUER) bal.ever = b.balance
 
             }
             cb(null, bal)
@@ -149,7 +157,7 @@ function setupEVERTrustline(cfg, acc, cb) {
         cfg.horizon,
         acc,
         'EVER',
-        'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CUSP5NC2R6D6WQ47JBLG6DF5TE',
+        EVER_ISSUER,
         null,
         cb
     )
@@ -258,6 +266,26 @@ function registerWithCommMgr() {
         ],
     }, (err) => {
         if(err) u.showErr(err)
+    })
+}
+let issuerMetaData;
+
+function loadMetaData(cfg){
+    luminate.stellar.status(cfg.horizon, { pub: EVER_ISSUER }, (err, data) => {
+        if(err) console.log(err)
+        else{
+            issuerMetaData = data.data_attr
+        }
+    })
+}
+
+function getIssuerMetaData(req,cb){
+    cb(null, issuerMetaData)
+}
+
+function payEver(cfg, acc, req, cb){
+    luminate.stellar.pay(cfg.horizon, acc, 'EVER', req.amt, { pub: EVER_ISSUER }, null, (err) =>{
+        cb(err)
     })
 }
 
