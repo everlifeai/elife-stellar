@@ -131,6 +131,10 @@ function startMicroservice(msinfo) {
         key: msKey,
     })
 
+    svc.on('set-new-pw', (req, cb) => {
+        setNewPw(msinfo, req, cb)
+    })
+
     svc.on('account-id', (req, cb) => {
         getAccountId(msinfo.acc, cb)
     })
@@ -151,6 +155,13 @@ function startMicroservice(msinfo) {
     svc.on('pay-ever', (req,cb) =>{
         payEver(msinfo.cfg, msinfo.acc, req, cb)
 
+    })
+}
+
+function setNewPw(msinfo, req, cb) {
+    pwc.savePw(req.pw, (err) => {
+        if(err) cb(err)
+        else loadWallet(msinfo, cb)
     })
 }
 
