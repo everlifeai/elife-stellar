@@ -7,7 +7,7 @@ const luminate = require('@tpp/luminate')
 
 const pwc = require('./pwc')
 
-const EVER_ISSUER = process.env.EVER_ISSUER || 'GBKSIXNHYREDENMXFNL5XXIYG6UVBEJIKINYWYGTUR46MPZMGQKOM522'
+const EVER_ISSUER = process.env.EVER_ISSUER || 'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CUSP5NC2R6D6WQ47JBLG6DF5TE'
 
 /*    understand/
  * Microservice key (identity of the microservice)
@@ -58,7 +58,11 @@ main()
  * Load the password from an encrypted file
  */
 function loadConfig(msinfo, cb) {
+    let horizon = process.env.ELIFE_STELLAR_HORIZON
+    if(!horizon) horizon = 'live'
+
     GOT_USER_PW = false
+
     pwc.loadPw((err, pw) => {
         if(err) cb(err)
         else {
@@ -68,7 +72,7 @@ function loadConfig(msinfo, cb) {
                 msinfo.cfg = {
                     pw: pw,
                     wallet_dir: path.join(u.dataLoc(), 'stellar'),
-                    horizon: 'test', // TODO: Enable 'live' stellar network integration
+                    horizon: horizon,
                 }
                 cb()
             }
