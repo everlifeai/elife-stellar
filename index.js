@@ -164,7 +164,7 @@ function getAccountBalance(cfg, acc, cb) {
     luminate.stellar.status(cfg.horizon, acc, (err, ai) => {
         if(err) cb(err)
         else {
-            let bal = {xlm:0,ever:0}
+            let bal = {xlm:null,ever:null}
             if(!ai.balances || !ai.balances.length) return cb(null, bal)
             for(let i = 0;i < ai.balances.length;i++) {
                 let b = ai.balances[i]
