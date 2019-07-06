@@ -14,6 +14,12 @@ const EVER_ISSUER = process.env.EVER_ISSUER || 'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CU
  */
 let msKey = 'everlife-stellar-svc'
 
+const commMgrClient = new cote.Requester({
+    name: 'Calculator -> CommMgr',
+    key: 'everlife-communication-svc',
+})
+
+
 /*    understand/
  * Keep track if we have been able to get the user password or not
  */
@@ -31,9 +37,10 @@ function main() {
         cfg: null,
         acc: null,
     }
-    startMicroservice(msinfo)
     loadWallet(msinfo, (err) => {
-        u.showErr(err)
+        if(err) u.showErr(err)
+        startMicroservice(msinfo)
+        registerWithCommMgr()
     })
 }
 
@@ -44,9 +51,7 @@ function loadWallet(msinfo, cb) {
             loadAccount(msinfo, (err) => {
                 if(err) cb(err)
                 else {
-                    loadMetaData(msinfo.cfg)
-                    registerWithCommMgr()
-                    cb()
+                    loadMetaData(msinfo.cfg, cb)
                 }
             })
         }
@@ -80,31 +85,33 @@ function loadConfig(msinfo, cb) {
     })
 }
 
+const WALLET_PFX = 'wallet'
+
 /*      outcome/
  * Look for the wallet account and load it if found. Otherwise create a
  * new wallet account for this avatar.
  */
 function loadAccount(msinfo, cb) {
-    const WALLET_NAME = 'wallet'
-
     luminate.wallet.list(msinfo.cfg.wallet_dir, (err, accs, errs) => {
         if(err) cb(err)
         else {
             if(errs && errs.length) u.showErr(errs) // only display problems in wallet dir
                                     //  don't do anything else
 
-            let found = false
+            let found
             for(let i = 0;i < accs.length;i++) {
-                if(accs[i].name == WALLET_NAME) found = true
+                if(accs[i].name.startsWith(WALLET_PFX)) {
+                    if(!found || found < accs[i].name) found = accs[i].name
+                }
             }
 
-            if(found) load_wallet_1()
+            if(found) load_wallet_1(found)
             else create_wallet_1()
         }
     })
 
-    function load_wallet_1() {
-        luminate.wallet.load(msinfo.cfg.pw, msinfo.cfg.wallet_dir, WALLET_NAME, (err, acc) => {
+    function load_wallet_1(wallet_name) {
+        luminate.wallet.load(msinfo.cfg.pw, msinfo.cfg.wallet_dir, wallet_name, (err, acc) => {
             if(err) cb(err)
             else {
                 msinfo.acc = acc
@@ -114,7 +121,7 @@ function loadAccount(msinfo, cb) {
     }
 
     function create_wallet_1() {
-        luminate.wallet.create(msinfo.cfg.pw, msinfo.cfg.wallet_dir, WALLET_NAME, (err, acc) => {
+        luminate.wallet.create(msinfo.cfg.pw, msinfo.cfg.wallet_dir, WALLET_PFX, (err, acc) => {
             if(err) cb(err)
             else {
                 msinfo.acc = acc
@@ -155,10 +162,40 @@ function startMicroservice(msinfo) {
         handleStellarCommands(msinfo.cfg, msinfo.acc, req, cb)
     })
 
-    svc.on('issuer-meta-data', getIssuerMetaData)
-    svc.on('pay-ever', (req,cb) =>{
-        payEver(msinfo.cfg, msinfo.acc, req, cb)
+    svc.on('import-new-wallet', (req, cb) => {
+        importNewWallet(msinfo, req, cb)
+    })
 
+    svc.on('issuer-meta-data', getIssuerMetaData)
+    svc.on('pay-ever', (req, cb) =>{
+        payEver(msinfo.cfg, msinfo.acc, req, cb)
+    })
+}
+
+function importNewWallet(msinfo, req, cb) {
+    if(!req.secret) return cb('No secret seed found to import!')
+    luminate.wallet.list(msinfo.cfg.wallet_dir, (err, accs, errs) => {
+        if(err) cb(err)
+        else {
+            if(errs && errs.length) u.showErr(errs) // only display problems in wallet dir
+                                    //  don't do anything else
+            let ndx = 0
+            for(let i = 0;i < accs.length;i++) {
+                if(accs[i].name.startsWith(WALLET_PFX)) {
+                    let num = accs[i].name.substring(WALLET_PFX.length)
+                    num = parseInt(num)
+                    if(isNaN(num)) num = 0
+                    if(num > ndx) ndx = num
+                }
+            }
+            ndx += 1
+            ndx = "00000" + ndx
+            ndx = ndx.substr(-3)
+            luminate.wallet.importSecret(msinfo.cfg.pw, msinfo.cfg.wallet_dir, WALLET_PFX + ndx, req.secret, (err) => {
+                if(err) cb(err)
+                else loadWallet(msinfo, cb)
+            })
+        }
     })
 }
 
@@ -283,11 +320,6 @@ function walletSetTrustline(cfg, acc, req) {
 }
 
 
-const commMgrClient = new cote.Requester({
-    name: 'Calculator -> CommMgr',
-    key: 'everlife-communication-svc',
-})
-
 function sendReply(msg, req) {
     req.type = 'reply'
     req.msg = String(msg)
@@ -313,19 +345,21 @@ function registerWithCommMgr() {
         if(err) u.showErr(err)
     })
 }
-let issuerMetaData;
+let ISSUERMETADATA;
 
-function loadMetaData(cfg){
+function loadMetaData(cfg, cb){
+    if(ISSUERMETADATA) return cb()
     luminate.stellar.status(cfg.horizon, { pub: EVER_ISSUER }, (err, data) => {
-        if(err) console.log(err)
-        else{
-            issuerMetaData = data.data_attr
+        if(err) cb(err)
+        else {
+            ISSUERMETADATA = data.data_attr
+            cb()
         }
     })
 }
 
 function getIssuerMetaData(req,cb){
-    cb(null, issuerMetaData)
+    cb(null, ISSUERMETADATA)
 }
 
 function payEver(cfg, acc, req, cb){
