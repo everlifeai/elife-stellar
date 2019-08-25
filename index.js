@@ -238,7 +238,15 @@ function setupEVERTrustline(cfg, acc, cb) {
         'EVER',
         EVER_ISSUER,
         null,
-        cb
+        (err) => {
+            if(err) {
+                if(err.response && err.response.data) {
+                    let errmsg = JSON.stringify(err.response.data)
+                    u.showErr(errmsg)
+                    cb(errmsg)
+                } else cb(err)
+            } else cb()
+        }
     )
 }
 
