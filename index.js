@@ -154,6 +154,10 @@ function startMicroservice(msinfo) {
         getAccountBalance(msinfo.cfg, msinfo.acc, cb)
     })
 
+    svc.on('txns', (req, cb) => {
+        getAccountTransactions(msinfo.cfg, msinfo.acc, req.from, cb)
+    })
+
     svc.on('setup-ever-trustline', (req, cb) => {
         setupEVERTrustline(msinfo.cfg, msinfo.acc, cb)
     })
@@ -228,6 +232,55 @@ function getAccountBalance(cfg, acc, cb) {
             cb(null, bal)
         }
     })
+}
+
+let TXNS = {}
+function getAccountTransactions(cfg, acc, from, cb) {
+    if(!cfg || !acc) return cb({ error: 'Wallet not loaded!', nopw: !GOT_USER_PW })
+    if(!TXNS[acc.pub]) TXNS[acc.pub] = {
+        streaming: false,
+        errs: [],
+        txns: [],
+    }
+
+    let curr = TXNS[acc.pub]
+
+    if(curr.errs && curr.errs.length) {
+        let errs = curr.errs.length > 1 ? curr.errs : curr.errs[0]
+        curr.errs = []
+        return cb(errs)
+    }
+
+    if(!curr.streaming && curr.txns.length == from) {
+      start_streaming_txns_1(cfg.horizon, acc, curr)
+      curr.onRecv = () => getAccountTransactions(cfg, acc, from, cb)
+    } else {
+      cb(null, curr.txns.slice(from), acc.pub)
+    }
+
+    function start_streaming_txns_1(hz, acc, curr) {
+      curr.streaming = true
+      curr.txns = []
+      curr.errs = []
+      luminate.stellar.accountTransactions(hz, acc, (err, txn, streamingerr) => {
+        if(err) {
+          curr.streaming = false
+          curr.errs.push(err)
+        } else if(streamingerr) {
+          curr.streaming = false
+          if(streamingerr.message) curr.errs.push(streamingerr)
+          return 1 // returning a value causes the streaming to stop
+        } else {
+          curr.txns.push(txn)
+        }
+        if(curr.onRecv) {
+          let handler = curr.onRecv
+          curr.onRecv = null
+          delete curr.onRecv
+          handler()
+        }
+      })
+    }
 }
 
 function setupEVERTrustline(cfg, acc, cb) {
