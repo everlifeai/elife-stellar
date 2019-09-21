@@ -244,7 +244,7 @@ function getAccountTransactions(cfg, acc, cb) {
         } else {
             r = r.concat(txns)
             if(txns.length) return true
-            else cb(null, r, acc.pub)
+            else cb(null, r)
         }
     })
 }
