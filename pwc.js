@@ -2,7 +2,7 @@
 const path = require('path')
 const fs = require('fs')
 const luminate = require('@tpp/luminate')
-const u = require('elife-utils')
+const u = require('@elife/utils')
 
 /*      problem/
  * The node has a stellar account that it uses to earn. This account is
