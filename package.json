@@ -8,5 +8,17 @@
   "dependencies": {
     "@tpp/luminate": "^2.2.2",
     "read": "^1.0.7"
-  }
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/everlifeai/elife-stellar.git"
+  },
+  "bugs": {
+    "url": "https://github.com/everlifeai/elife-stellar/issues"
+  },
+  "homepage": "https://github.com/everlifeai/elife-stellar#readme"
 }
