@@ -1,15 +1,10 @@
 {
   "name": "elife-stellar",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Manages the Stellar Chain for the Avatar",
   "main": "index.js",
   "author": "charles.lobo@gmail.com",
   "license": "MIT",
-  "dependencies": {
-    "@tpp/luminate": "^2.2.2",
-    "read": "^1.0.7"
-  },
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
