@@ -15,7 +15,7 @@ const EVER_ISSUER = process.env.EVER_ISSUER || 'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CU
 let msKey = 'everlife-stellar-svc'
 
 const commMgrClient = new cote.Requester({
-    name: 'Calculator -> CommMgr',
+    name: 'Stellar -> CommMgr',
     key: 'everlife-communication-svc',
 })
 
