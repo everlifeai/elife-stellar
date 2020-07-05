@@ -8,7 +8,7 @@ const luminate = require('@tpp/luminate')
 const pwc = require('./pwc')
 
 const EVER_ISSUER = process.env.EVER_ISSUER || 'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CUSP5NC2R6D6WQ47JBLG6DF5TE'
-
+const WALLET_REQ_TIMEOUT = 10000;
 /*    understand/
  * Microservice key (identity of the microservice)
  */
@@ -252,6 +252,7 @@ function getAccountTransactions(cfg, acc, cb) {
 function setupEVERTrustline(cfg, acc, cb) {
     if(!cfg || !acc) return cb({ error: 'Wallet not loaded!', nopw: !GOT_USER_PW })
     luminate.stellar.setTrustline(
+        WALLET_REQ_TIMEOUT,
         cfg.horizon,
         acc,
         'EVER',
