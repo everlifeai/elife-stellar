@@ -66,6 +66,7 @@ function loadConfig(msinfo, cb) {
     let horizon = process.env.ELIFE_STELLAR_HORIZON
     if(!horizon) horizon = 'live'
 
+    /* NB: timeout is in seconds */
     let timeout = process.env.ELIFE_STELLAR_TIMEOUT
     if(!timeout) timeout = 30
 
