@@ -396,8 +396,15 @@ function getIssuerMetaData(req,cb){
 
 function payEver(cfg, acc, req, cb){
     if(!cfg || !acc) return cb({ error: 'Wallet not loaded!', nopw: !GOT_USER_PW })
-    luminate.stellar.pay(cfg.horizon, acc, 'EVER', req.amt, { pub: EVER_ISSUER }, null, (err) =>{
-        cb(err)
-    })
+
+    luminate.stellar.pay(
+        cfg.timeout,
+        cfg.horizon,
+        acc,
+        'EVER', req.amt,
+        { pub: EVER_ISSUER },
+        null, (err) =>{
+            cb(err)
+        })
 }
 
