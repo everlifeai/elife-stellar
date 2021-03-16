@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/everlifeai/elife-stellar/issues"
   },
-  "homepage": "https://github.com/everlifeai/elife-stellar#readme"
+  "homepage": "https://github.com/everlifeai/elife-stellar#readme",
+  "dependencies": {
+    "@tpp/luminate": "^4.0.1"
+  }
 }
