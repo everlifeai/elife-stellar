@@ -49,7 +49,7 @@ function main() {
     })
 }
 
-function loadConfig(msginfo) {
+function loadConfig(msinfo) {
     let horizon = process.env.ELIFE_STELLAR_HORIZON
     if(!horizon) horizon = 'live'
 
