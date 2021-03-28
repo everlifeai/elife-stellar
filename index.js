@@ -1,7 +1,10 @@
 'use strict'
-const cote = require('cote')({statusLogsEnabled:false})
 const fs = require('fs')
 const path = require('path')
+
+const StellarSdk = require('stellar-sdk')
+const cote = require('cote')({statusLogsEnabled:false})
+
 const u = require('@elife/utils')
 const luminate = require('@tpp/luminate')
 
@@ -37,6 +40,8 @@ function main() {
         cfg: null,
         acc: null,
     }
+    loadConfig(msginfo)
+
     loadWallet(msinfo, (err) => {
         if(err) u.showErr(err)
         startMicroservice(msinfo)
@@ -44,25 +49,7 @@ function main() {
     })
 }
 
-function loadWallet(msinfo, cb) {
-    loadConfig(msinfo, (err) => {
-        if(err) cb(err)
-        else {
-            loadAccount(msinfo, (err) => {
-                if(err) cb(err)
-                else {
-                    loadMetaData(msinfo.cfg, cb)
-                }
-            })
-        }
-    })
-}
-main()
-
-/*      outcome/
- * Load the password from an encrypted file
- */
-function loadConfig(msinfo, cb) {
+function loadConfig(msginfo) {
     let horizon = process.env.ELIFE_STELLAR_HORIZON
     if(!horizon) horizon = 'live'
 
@@ -70,6 +57,64 @@ function loadConfig(msinfo, cb) {
     let timeout = process.env.ELIFE_STELLAR_TIMEOUT
     if(!timeout) timeout = 30
 
+    msinfo.cfg = {
+        wallet_dir: path.join(u.dataLoc(), 'stellar'),
+        horizon: horizon,
+        timeout: timeout,
+    }
+}
+
+/*    outcome/
+ * load the wallet account from the secret file
+ * or load it from the luminate wallet
+ */
+function loadWallet(msinfo, cb) {
+    loadSecretWallet(msinfo, (err, ok) => {
+        if(err) u.showErr(err)
+        if(ok) done_1()
+        else loadLuminateWallet(msinfo, done_1)
+    })
+
+    function done_1(err) {
+        if(err) cb(err)
+        else loadMetaData(msinfo.cfg, cb)
+    }
+
+}
+
+function loadSecretWallet(msinfo, cb) {
+    fs.readFile(u.secretFile(), 'utf8', (err, data) => {
+      if(err) return cb(err)
+      try {
+        data = data.replace(/\s*#[^\n]*/g, "")
+        data = JSON.parse(data)
+        if(data.stellar && data.stellar.publicKey && data.stellar.secretKey) {
+          msinfo.acc = {
+            pub: data.stellar.publicKey,
+            _kp: StellarSdk.Keypair.fromSecret(data.stellar.secretKey),
+          }
+          cb(null, true)
+        } else {
+          cb()
+        }
+      } catch(e) {
+        cb(e)
+      }
+    })
+}
+
+function loadLuminateWallet(msinfo, cb) {
+    loadPw(msinfo, (err) => {
+        if(err) cb(err)
+        else loadAccount(msinfo, cb)
+    })
+}
+main()
+
+/*      outcome/
+ * Load the password from an encrypted file
+ */
+function loadPw(msinfo, cb) {
     GOT_USER_PW = false
 
     pwc.loadPw((err, pw) => {
@@ -78,12 +123,7 @@ function loadConfig(msinfo, cb) {
             if(!pw) cb(`Failed loading wallet password`)
             else {
                 GOT_USER_PW = true
-                msinfo.cfg = {
-                    pw: pw,
-                    wallet_dir: path.join(u.dataLoc(), 'stellar'),
-                    horizon: horizon,
-                    timeout: timeout,
-                }
+                msinfo.cfg.pw = pw
                 cb()
             }
         }
