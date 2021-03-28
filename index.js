@@ -40,7 +40,7 @@ function main() {
         cfg: null,
         acc: null,
     }
-    loadConfig(msginfo)
+    loadConfig(msinfo)
 
     loadWallet(msinfo, (err) => {
         if(err) u.showErr(err)
