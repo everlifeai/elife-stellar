@@ -1,6 +1,6 @@
 {
   "name": "elife-stellar",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Manages the Stellar Chain for the Avatar",
   "main": "index.js",
   "author": "charles.lobo@gmail.com",
