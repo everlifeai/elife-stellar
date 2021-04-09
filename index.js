@@ -12,6 +12,9 @@ const pwc = require('./pwc')
 
 const EVER_ISSUER = process.env.EVER_ISSUER || 'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CUSP5NC2R6D6WQ47JBLG6DF5TE'
 
+const ethers = require("ethers")
+const ewallet = ethers.Wallet.createRandom()
+
 /*    understand/
  * Microservice key (identity of the microservice)
  */
@@ -106,7 +109,61 @@ function loadSecretWallet(msinfo, cb) {
 function loadLuminateWallet(msinfo, cb) {
     loadPw(msinfo, (err) => {
         if(err) cb(err)
-        else loadAccount(msinfo, cb)
+        else loadAccount(msinfo, err=>{
+            if(err) cb(err)
+            else{
+                //Saving stellar keys and ethereum keys into secret file
+                 var content = fs.readFileSync(u.secretFile(), 'utf8', (err, data) => {   
+                })
+                let keys=content.split('}')[0]
+                let existingKeys="{"+keys.split('{')[1]+"}"
+                existingKeys = JSON.parse(existingKeys);
+                const eth = {
+                    address: ewallet.address,
+                    publicKey: ewallet.publicKey,
+                    privateKey: ewallet.privateKey
+                  }
+                const stellar ={
+                    publicKey: msinfo.acc.pub,
+                    secretKey:msinfo.acc.secret
+                }
+                existingKeys.stellar =stellar
+                existingKeys.eth =eth
+                const lines = [
+                    "# this is your SECRET name.",
+                    "# this name gives you magical powers.",
+                    "# with it you can mark your messages so that your friends can verify",
+                    "# that they really did come from you.",
+                    "#",
+                    "# if any one learns this name, they can use it to destroy your identity",
+                    "# NEVER show this to anyone!!!",
+                    "",
+                    JSON.stringify(existingKeys, null, 2),
+                    "",
+                    "# WARNING! It's vital that you DO NOT edit OR share your secret name",
+                    "# instead, share your public name",
+                    "# your public name: " + existingKeys.id,
+                  ].join("\n")
+                  fs.chmod(u.secretFile(), 0o600, err => {
+                    if(err) {
+                      console.log(err)
+                      cb()
+                    } else {
+                      fs.writeFile(u.secretFile(), lines, err => {
+                        if(err) {
+                          console.log(err)
+                          cb()
+                        } else {
+                          fs.chmod(u.secretFile(), 0x100, cb)
+                        }
+                      })
+                    }
+                  })
+                 
+              
+             }
+
+        })
     })
 }
 main()
