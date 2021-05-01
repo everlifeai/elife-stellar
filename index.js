@@ -515,7 +515,7 @@ async function getClaimableBalanceId(cfg, acc,  cb) {
     let server =  getStellarServer(cfg.horizon)
 
     let buyer = acc._kp
-    let signer = StellarSdk.Keypair.fromPublicKey('GCYTED6QWSGDNLQ2RBXDVYSKCOUB2BC6DLKGAU5QPNONMVN47ABUN6WE');
+    let SIGNER_PUBLIC_KEY = 'GCYTED6QWSGDNLQ2RBXDVYSKCOUB2BC6DLKGAU5QPNONMVN47ABUN6WE'
 
     let buyerAccount = await server.loadAccount(buyer.publicKey()).catch((err) => {
         u.showErr(`Failed to load ${buyer.publicKey()}: ${err}`)
@@ -530,11 +530,11 @@ async function getClaimableBalanceId(cfg, acc,  cb) {
 
     let claimableBalanceEntry =  StellarSdk.Operation.createClaimableBalance({
         claimants: [
-            new StellarSdk.Claimant(signer.publicKey(), signerCanClaim),
+            new StellarSdk.Claimant(SIGNER_PUBLIC_KEY, signerCanClaim),
             new StellarSdk.Claimant(buyer.publicKey(), buyerCanReclaim)
         ],
         asset: StellarSdk.Asset.native(),
-        amount: "4",
+        amount: "420",
     });
 
     let tx = new StellarSdk.TransactionBuilder(buyerAccount, {fee: StellarSdk.BASE_FEE})
@@ -546,7 +546,11 @@ async function getClaimableBalanceId(cfg, acc,  cb) {
     tx.sign(buyer);
     try {
         const txResponse = await server.submitTransaction(tx)
-        cb(null, txResponse.id)
+        const txResult = StellarSdk.xdr.TransactionResult.fromXDR(txResponse.result_xdr, "base64")
+        const results = txResult.result().results()
+        const result = results[0].value().createClaimableBalanceResult()
+        const claim = result.balanceId().toXDR("hex")
+        cb(null, claim)
     } catch(e) {
         u.showErr(e)
         cb(e)
@@ -558,16 +562,16 @@ const TEST_HORIZON = "https://horizon-testnet.stellar.org/"
 
 function getNetworkPhrase(horizon) {
     if(horizon == 'live') {
-        return new StellarSdk.Server(LIVE_HORIZON)
+        return StellarSdk.Networks.PUBLIC
     } else {
-        return new StellarSdk.Server(TEST_HORIZON)
+        return StellarSdk.Networks.TESTNET
     }
 }
 
 function getStellarServer(horizon) {
     if(horizon == 'live') {
-        return new StellarSdk.server(LIVE_HORIZON)
+        return new StellarSdk.Server(LIVE_HORIZON)
     } else {
-        return new StellarSdk.server(TEST_HORIZON)
+        return new StellarSdk.Server(TEST_HORIZON)
     }
 }
