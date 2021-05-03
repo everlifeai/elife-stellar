@@ -280,26 +280,57 @@ function startMicroservice(msinfo) {
 
 function importNewWallet(msinfo, req, cb) {
     if(!req.secret) return cb('No secret seed found to import!')
-    luminate.wallet.list(msinfo.cfg.wallet_dir, (err, accs, errs) => {
-        if(err) cb(err)
-        else {
-            if(errs && errs.length) u.showErr(errs) // only display problems in wallet dir
-                                    //  don't do anything else
-            let ndx = 0
-            for(let i = 0;i < accs.length;i++) {
-                if(accs[i].name.startsWith(WALLET_PFX)) {
-                    let num = accs[i].name.substring(WALLET_PFX.length)
-                    num = parseInt(num)
-                    if(isNaN(num)) num = 0
-                    if(num > ndx) ndx = num
+    let content = fs.readFileSync(u.secretFile(), 'utf8', (err, data) => {  
+    })
+    let oldStellarArr=[];
+    let stellarSecretKey=req.secret;
+    let sourceKeypair=StellarSdk.Keypair.fromSecret(req.secret);
+    let stellarPublicKey=sourceKeypair.publicKey()
+    let stringtoJSON = {...JSON.parse(content.split("\n\n")[1])};
+    let stellarKeys = stringtoJSON.stellar
+    if(stellarKeys.hasOwnProperty('old')){
+        oldStellarArr.push(...stellarKeys.old)
+        oldStellarArr.unshift({
+            publicKey:stellarKeys.publicKey,
+            secretKey:stellarKeys.secretKey
+        })
+    }else{
+        oldStellarArr.push(stellarKeys)
+    }
+    let newStellarKeys={
+        publicKey:stellarPublicKey, 
+        secretKey:stellarSecretKey,
+        old:oldStellarArr
+    }
+    stringtoJSON.stellar= newStellarKeys
+    let allKeys=stringtoJSON
+    const lines = [
+        "# this is your SECRET name.",
+        "# this name gives you magical powers.",
+        "# with it you can mark your messages so that your friends can verify",
+        "# that they really did come from you.",
+        "#",
+        "# if any one learns this name, they can use it to destroy your identity",
+        "# NEVER show this to anyone!!!",
+        "",
+        JSON.stringify(allKeys, null, 2),
+        "",
+        "# WARNING! It's vital that you DO NOT edit OR share your secret name",
+        "# instead, share your public name",
+        "# your public name: " + stringtoJSON.id,
+    ].join("\n")
+    fs.chmod(u.secretFile(), 0o600, err => {
+        if(err) {
+            console.log(err)
+            cb()
+        } else {
+            fs.writeFile(u.secretFile(), lines, err => {
+                if(err) {
+                    console.log(err)
+                    cb()
+                } else {
+                    fs.chmod(u.secretFile(), 0x100, cb)
                 }
-            }
-            ndx += 1
-            ndx = "00000" + ndx
-            ndx = ndx.substr(-3)
-            luminate.wallet.importSecret(msinfo.cfg.pw, msinfo.cfg.wallet_dir, WALLET_PFX + ndx, req.secret, (err) => {
-                if(err) cb(err)
-                else loadWallet(msinfo, cb)
             })
         }
     })
