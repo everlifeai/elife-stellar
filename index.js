@@ -280,8 +280,12 @@ function startMicroservice(msinfo) {
 
 function importNewWallet(msinfo, req, cb) {
     if(!req.secret) return cb('No secret seed found to import!')
-    let content = fs.readFileSync(u.secretFile(), 'utf8', (err, data) => {  
-    })
+    let content
+    try {
+        content = fs.readFileSync(u.secretFile(), 'utf8')
+    } catch(err) {
+        return cb(err)
+    }
     let oldStellarArr=[];
     let stellarSecretKey=req.secret;
     let sourceKeypair=StellarSdk.Keypair.fromSecret(req.secret);
