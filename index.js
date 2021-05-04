@@ -283,6 +283,7 @@ function importNewWallet(msinfo, req, cb) {
     let content
     try {
         content = fs.readFileSync(u.secretFile(), 'utf8')
+        content = content.replace(/\s*#[^\n]*/g, "")
     } catch(err) {
         return cb(err)
     }
@@ -290,7 +291,7 @@ function importNewWallet(msinfo, req, cb) {
     let stellarSecretKey=req.secret;
     let sourceKeypair=StellarSdk.Keypair.fromSecret(req.secret);
     let stellarPublicKey=sourceKeypair.publicKey()
-    let stringtoJSON = {...JSON.parse(content.split("\n\n")[1])};
+    let stringtoJSON = JSON.parse(content)
     let stellarKeys = stringtoJSON.stellar
     if(stellarKeys.hasOwnProperty('old')){
         oldStellarArr.push(...stellarKeys.old)
