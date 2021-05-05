@@ -13,7 +13,6 @@ const pwc = require('./pwc')
 const EVER_ISSUER = process.env.EVER_ISSUER || 'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CUSP5NC2R6D6WQ47JBLG6DF5TE'
 
 const ethers = require("ethers")
-const ewallet = ethers.Wallet.createRandom()
 
 /*    understand/
  * Microservice key (identity of the microservice)
