@@ -276,6 +276,10 @@ function startMicroservice(msinfo) {
     svc.on('pay-ever', (req, cb) =>{
         payEver(msinfo.cfg, msinfo.acc, req, cb)
     })
+
+    svc.on('claimable-balance', (req, cb) => {
+        createClaimableBalance(req, msinfo.cfg, msinfo.acc, cb)
+    })
 }
 
 function importNewWallet(msinfo, req, cb) {
@@ -542,3 +546,73 @@ function payEver(cfg, acc, req, cb){
         })
 }
 
+async function createClaimableBalance(req, cfg, acc,  cb) {
+    const server =  getStellarServer(cfg.horizon)
+
+    const me = acc._kp
+
+    const recp = req.recp
+    if(!recp) return cb('No recp(ient) present in request')
+
+    const amount = req.amount
+    if(!amount) return cb('No amount present in request')
+
+    const account = await server.loadAccount(me.publicKey()).catch(err => {
+        u.showErr(`Failed to load ${me.publicKey()}: ${err}`)
+        return cb(`Failed to load ${me.publicKey()}: ${err}`)
+    })
+
+    const soon = Math.ceil((Date.now() / 1000) + 600)
+    const canClaim = StellarSdk.Claimant.predicateBeforeRelativeTime("600")
+    const canReclaim = StellarSdk.Claimant.predicateNot(StellarSdk.Claimant.predicateBeforeAbsoluteTime(soon.toString()))
+
+    const claimableBalanceEntry =  StellarSdk.Operation.createClaimableBalance({
+        claimants: [
+            new StellarSdk.Claimant(recp, canClaim),
+            new StellarSdk.Claimant(me.publicKey(), canReclaim)
+        ],
+        asset: StellarSdk.Asset.native(),
+        amount,
+    });
+
+    const tx = new StellarSdk.TransactionBuilder(account, {fee: StellarSdk.BASE_FEE})
+        .addOperation(claimableBalanceEntry)
+        .setNetworkPassphrase(getNetworkPhrase(cfg.horizon))
+        .setTimeout(180)
+        .build()
+
+    tx.sign(me)
+
+    try {
+        const txResponse = await server.submitTransaction(tx)
+        const txResult = StellarSdk.xdr.TransactionResult.fromXDR(txResponse.result_xdr, "base64")
+        const results = txResult.result().results()
+        const result = results[0].value().createClaimableBalanceResult()
+        const claim = result.balanceId().toXDR("hex")
+
+        cb(null, claim)
+
+    } catch(e) {
+        u.showErr(e)
+        cb(e)
+    }
+}
+
+const LIVE_HORIZON = "https://horizon.stellar.org/"
+const TEST_HORIZON = "https://horizon-testnet.stellar.org/"
+
+function getNetworkPhrase(horizon) {
+    if(horizon == 'live') {
+        return StellarSdk.Networks.PUBLIC
+    } else {
+        return StellarSdk.Networks.TESTNET
+    }
+}
+
+function getStellarServer(horizon) {
+    if(horizon == 'live') {
+        return new StellarSdk.Server(LIVE_HORIZON)
+    } else {
+        return new StellarSdk.Server(TEST_HORIZON)
+    }
+}
