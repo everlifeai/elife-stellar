@@ -85,11 +85,8 @@ function loadWallet(msinfo, cb) {
 }
 
 function loadSecretWallet(msinfo, cb) {
-    fs.readFile(u.secretFile(), 'utf8', (err, data) => {
-      if(err) return cb(err)
-      try {
-        data = data.replace(/\s*#[^\n]*/g, "")
-        data = JSON.parse(data)
+    loadSecretData((err, data) => {
+        if(err) return cb(err)
         if(data.stellar && data.stellar.publicKey && data.stellar.secretKey) {
           msinfo.acc = {
             pub: data.stellar.publicKey,
@@ -99,6 +96,19 @@ function loadSecretWallet(msinfo, cb) {
         } else {
           cb()
         }
+    })
+}
+
+/*      way/
+ * read the secret file and - ignoring comments - parse it
+ * as a JSON and return the data
+ */
+function loadSecretData(cb) {
+    fs.readFile(u.secretFile(), 'utf8', (err, data) => {
+      if(err) return cb(err)
+      try {
+        data = data.replace(/\s*#[^\n]*/g, "")
+        cb(null, JSON.parse(data))
       } catch(e) {
         cb(e)
       }
@@ -110,62 +120,78 @@ function loadLuminateWallet(msinfo, cb) {
         if(err) cb(err)
         else loadAccount(msinfo, err=>{
             if(err) cb(err)
-            else{
-                //Saving stellar keys and ethereum keys into secret file
-                 var content = fs.readFileSync(u.secretFile(), 'utf8', (err, data) => {   
-                })
-                let keys=content.split('}')[0]
-                let existingKeys="{"+keys.split('{')[1]+"}"
-                existingKeys = JSON.parse(existingKeys);
-                const eth = {
-                    address: ewallet.address,
-                    publicKey: ewallet.publicKey,
-                    privateKey: ewallet.privateKey
-                  }
-                const stellar ={
-                    publicKey: msinfo.acc.pub,
-                    secretKey:msinfo.acc.secret
-                }
-                existingKeys.stellar =stellar
-                existingKeys.eth =eth
-                const lines = [
-                    "# this is your SECRET name.",
-                    "# this name gives you magical powers.",
-                    "# with it you can mark your messages so that your friends can verify",
-                    "# that they really did come from you.",
-                    "#",
-                    "# if any one learns this name, they can use it to destroy your identity",
-                    "# NEVER show this to anyone!!!",
-                    "",
-                    JSON.stringify(existingKeys, null, 2),
-                    "",
-                    "# WARNING! It's vital that you DO NOT edit OR share your secret name",
-                    "# instead, share your public name",
-                    "# your public name: " + existingKeys.id,
-                  ].join("\n")
-                  fs.chmod(u.secretFile(), 0o600, err => {
-                    if(err) {
-                      console.log(err)
-                      cb()
-                    } else {
-                      fs.writeFile(u.secretFile(), lines, err => {
-                        if(err) {
-                          console.log(err)
-                          cb()
-                        } else {
-                          fs.chmod(u.secretFile(), 0x100, cb)
-                        }
-                      })
-                    }
-                  })
-                 
-              
-             }
-
+            else saveIntoSecretFile(msinfo.acc.secret, cb)
         })
     })
 }
 main()
+
+/*      outcome/
+ * save the stellar (and eth) keys into the secret file
+ * so we can load it from there the next time (migrate out of luminate
+ * wallet)
+ */
+function saveIntoSecretFile(secret, cb) {
+    let kp
+    try {
+        kp = StellarSdk.Keypair.fromSecret(secret)
+    } catch(e) {
+        return cb(`Invalid Stellar Secret Key: ${secret}`)
+    }
+
+    loadSecretData((err, data) => {
+        if(err) return cb(err)
+
+        if(!data.eth) {
+            const ewallet = ethers.Wallet.createRandom()
+            data.eth = {
+                address: ewallet.address,
+                publicKey: ewallet.publicKey,
+                privateKey: ewallet.privateKey
+            }
+        }
+
+        const old = []
+        if(data.stellar) {
+            old.push({
+                publicKey: data.stellar.publicKey,
+                secretKey: data.stellar.secretKey,
+            })
+            if(data.stellar.old) {
+                old.push(...data.stellar.old)
+            }
+        }
+        data.stellar = {
+            publicKey: kp.publicKey(),
+            secretKey: kp.secretKey(),
+        }
+        if(old.length) data.stellar.old = old
+
+        const lines = `# These are your SECRET keys.",
+#
+# Any one who has access to these keys has access to
+# your avatar and wallets and can use it to steal from
+# you and destroy your identity.
+#
+# NEVER show this to anyone!!!
+
+${JSON.stringify(data, null, 2)}
+
+# WARNING! It's vital that you DO NOT edit OR share your SECRET keys.
+# You can safely share your public name or any of the other public keys.
+# your public name: ${existingKeys.id}`
+
+
+        fs.chmod(u.secretFile(), 0o600, err => {
+            if(err) return cb(err)
+            fs.writeFile(u.secretFile(), lines, err => {
+                if(err) return cb(err)
+                fs.chmod(u.secretFile(), 0x100, cb)
+            })
+        })
+
+    })
+}
 
 /*      outcome/
  * Load the password from an encrypted file
@@ -282,66 +308,8 @@ function startMicroservice(msinfo) {
 }
 
 function importNewWallet(msinfo, req, cb) {
-    if(!req.secret) return cb('No secret seed found to import!')
-    let content
-    try {
-        content = fs.readFileSync(u.secretFile(), 'utf8')
-        content = content.replace(/\s*#[^\n]*/g, "")
-    } catch(err) {
-        return cb(err)
-    }
-    let oldStellarArr=[];
-    let stellarSecretKey=req.secret;
-    let sourceKeypair=StellarSdk.Keypair.fromSecret(req.secret);
-    let stellarPublicKey=sourceKeypair.publicKey()
-    let stringtoJSON = JSON.parse(content)
-    let stellarKeys = stringtoJSON.stellar
-    if(stellarKeys.hasOwnProperty('old')){
-        oldStellarArr.push(...stellarKeys.old)
-        oldStellarArr.unshift({
-            publicKey:stellarKeys.publicKey,
-            secretKey:stellarKeys.secretKey
-        })
-    }else{
-        oldStellarArr.push(stellarKeys)
-    }
-    let newStellarKeys={
-        publicKey:stellarPublicKey, 
-        secretKey:stellarSecretKey,
-        old:oldStellarArr
-    }
-    stringtoJSON.stellar= newStellarKeys
-    let allKeys=stringtoJSON
-    const lines = [
-        "# this is your SECRET name.",
-        "# this name gives you magical powers.",
-        "# with it you can mark your messages so that your friends can verify",
-        "# that they really did come from you.",
-        "#",
-        "# if any one learns this name, they can use it to destroy your identity",
-        "# NEVER show this to anyone!!!",
-        "",
-        JSON.stringify(allKeys, null, 2),
-        "",
-        "# WARNING! It's vital that you DO NOT edit OR share your secret name",
-        "# instead, share your public name",
-        "# your public name: " + stringtoJSON.id,
-    ].join("\n")
-    fs.chmod(u.secretFile(), 0o600, err => {
-        if(err) {
-            console.log(err)
-            cb()
-        } else {
-            fs.writeFile(u.secretFile(), lines, err => {
-                if(err) {
-                    console.log(err)
-                    cb()
-                } else {
-                    fs.chmod(u.secretFile(), 0x100, cb)
-                }
-            })
-        }
-    })
+    if(!req.secret) return cb('No Stellar Secret Key found to import!')
+    saveIntoSecretFile(req.secret, cb)
 }
 
 function setNewPw(msinfo, req, cb) {
