@@ -5,9 +5,6 @@
   "main": "index.js",
   "author": "charles.lobo@gmail.com",
   "license": "MIT",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/everlifeai/elife-stellar.git"
