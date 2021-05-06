@@ -7,13 +7,12 @@ const cote = require('cote')({statusLogsEnabled:false})
 
 const u = require('@elife/utils')
 const luminate = require('@tpp/luminate')
+const secret_ = require('@elife/secret')
 
 const pwc = require('./pwc')
 
 const EVER_ISSUER = process.env.EVER_ISSUER || 'GDRCJ5OJTTIL4VUQZ52PCZYAUINEH2CUSP5NC2R6D6WQ47JBLG6DF5TE'
 
-const ethers = require("ethers")
-const ewallet = ethers.Wallet.createRandom()
 
 /*    understand/
  * Microservice key (identity of the microservice)
@@ -86,11 +85,8 @@ function loadWallet(msinfo, cb) {
 }
 
 function loadSecretWallet(msinfo, cb) {
-    fs.readFile(u.secretFile(), 'utf8', (err, data) => {
-      if(err) return cb(err)
-      try {
-        data = data.replace(/\s*#[^\n]*/g, "")
-        data = JSON.parse(data)
+    secret_.loadSecretData((err, data) => {
+        if(err) return cb(err)
         if(data.stellar && data.stellar.publicKey && data.stellar.secretKey) {
           msinfo.acc = {
             pub: data.stellar.publicKey,
@@ -100,9 +96,6 @@ function loadSecretWallet(msinfo, cb) {
         } else {
           cb()
         }
-      } catch(e) {
-        cb(e)
-      }
     })
 }
 
@@ -111,58 +104,7 @@ function loadLuminateWallet(msinfo, cb) {
         if(err) cb(err)
         else loadAccount(msinfo, err=>{
             if(err) cb(err)
-            else{
-                //Saving stellar keys and ethereum keys into secret file
-                 var content = fs.readFileSync(u.secretFile(), 'utf8', (err, data) => {   
-                })
-                let keys=content.split('}')[0]
-                let existingKeys="{"+keys.split('{')[1]+"}"
-                existingKeys = JSON.parse(existingKeys);
-                const eth = {
-                    address: ewallet.address,
-                    publicKey: ewallet.publicKey,
-                    privateKey: ewallet.privateKey
-                  }
-                const stellar ={
-                    publicKey: msinfo.acc.pub,
-                    secretKey:msinfo.acc.secret
-                }
-                existingKeys.stellar =stellar
-                existingKeys.eth =eth
-                const lines = [
-                    "# this is your SECRET name.",
-                    "# this name gives you magical powers.",
-                    "# with it you can mark your messages so that your friends can verify",
-                    "# that they really did come from you.",
-                    "#",
-                    "# if any one learns this name, they can use it to destroy your identity",
-                    "# NEVER show this to anyone!!!",
-                    "",
-                    JSON.stringify(existingKeys, null, 2),
-                    "",
-                    "# WARNING! It's vital that you DO NOT edit OR share your secret name",
-                    "# instead, share your public name",
-                    "# your public name: " + existingKeys.id,
-                  ].join("\n")
-                  fs.chmod(u.secretFile(), 0o600, err => {
-                    if(err) {
-                      console.log(err)
-                      cb()
-                    } else {
-                      fs.writeFile(u.secretFile(), lines, err => {
-                        if(err) {
-                          console.log(err)
-                          cb()
-                        } else {
-                          fs.chmod(u.secretFile(), 0x100, cb)
-                        }
-                      })
-                    }
-                  })
-                 
-              
-             }
-
+            else secret_.updateWalletKey(msinfo.acc.secret, cb)
         })
     })
 }
@@ -276,64 +218,15 @@ function startMicroservice(msinfo) {
     svc.on('pay-ever', (req, cb) =>{
         payEver(msinfo.cfg, msinfo.acc, req, cb)
     })
+
+    svc.on('claimable-balance', (req, cb) => {
+        createClaimableBalance(req, msinfo.cfg, msinfo.acc, cb)
+    })
 }
 
 function importNewWallet(msinfo, req, cb) {
-    if(!req.secret) return cb('No secret seed found to import!')
-    let content = fs.readFileSync(u.secretFile(), 'utf8', (err, data) => {  
-    })
-    let oldStellarArr=[];
-    let stellarSecretKey=req.secret;
-    let sourceKeypair=StellarSdk.Keypair.fromSecret(req.secret);
-    let stellarPublicKey=sourceKeypair.publicKey()
-    let stringtoJSON = {...JSON.parse(content.split("\n\n")[1])};
-    let stellarKeys = stringtoJSON.stellar
-    if(stellarKeys.hasOwnProperty('old')){
-        oldStellarArr.push(...stellarKeys.old)
-        oldStellarArr.unshift({
-            publicKey:stellarKeys.publicKey,
-            secretKey:stellarKeys.secretKey
-        })
-    }else{
-        oldStellarArr.push(stellarKeys)
-    }
-    let newStellarKeys={
-        publicKey:stellarPublicKey, 
-        secretKey:stellarSecretKey,
-        old:oldStellarArr
-    }
-    stringtoJSON.stellar= newStellarKeys
-    let allKeys=stringtoJSON
-    const lines = [
-        "# this is your SECRET name.",
-        "# this name gives you magical powers.",
-        "# with it you can mark your messages so that your friends can verify",
-        "# that they really did come from you.",
-        "#",
-        "# if any one learns this name, they can use it to destroy your identity",
-        "# NEVER show this to anyone!!!",
-        "",
-        JSON.stringify(allKeys, null, 2),
-        "",
-        "# WARNING! It's vital that you DO NOT edit OR share your secret name",
-        "# instead, share your public name",
-        "# your public name: " + stringtoJSON.id,
-    ].join("\n")
-    fs.chmod(u.secretFile(), 0o600, err => {
-        if(err) {
-            console.log(err)
-            cb()
-        } else {
-            fs.writeFile(u.secretFile(), lines, err => {
-                if(err) {
-                    console.log(err)
-                    cb()
-                } else {
-                    fs.chmod(u.secretFile(), 0x100, cb)
-                }
-            })
-        }
-    })
+    if(!req.secret) return cb('No Stellar Secret Key found to import!')
+    secret_.updateWalletKey(req.secret, cb)
 }
 
 function setNewPw(msinfo, req, cb) {
@@ -537,3 +430,73 @@ function payEver(cfg, acc, req, cb){
         })
 }
 
+async function createClaimableBalance(req, cfg, acc,  cb) {
+    const server =  getStellarServer(cfg.horizon)
+
+    const me = acc._kp
+
+    const recp = req.recp
+    if(!recp) return cb('No recp(ient) present in request')
+
+    const amount = req.amount
+    if(!amount) return cb('No amount present in request')
+
+    const account = await server.loadAccount(me.publicKey()).catch(err => {
+        u.showErr(`Failed to load ${me.publicKey()}: ${err}`)
+        return cb(`Failed to load ${me.publicKey()}: ${err}`)
+    })
+
+    const soon = Math.ceil((Date.now() / 1000) + 600)
+    const canClaim = StellarSdk.Claimant.predicateBeforeRelativeTime("600")
+    const canReclaim = StellarSdk.Claimant.predicateNot(StellarSdk.Claimant.predicateBeforeAbsoluteTime(soon.toString()))
+
+    const claimableBalanceEntry =  StellarSdk.Operation.createClaimableBalance({
+        claimants: [
+            new StellarSdk.Claimant(recp, canClaim),
+            new StellarSdk.Claimant(me.publicKey(), canReclaim)
+        ],
+        asset: StellarSdk.Asset.native(),
+        amount,
+    });
+
+    const tx = new StellarSdk.TransactionBuilder(account, {fee: StellarSdk.BASE_FEE})
+        .addOperation(claimableBalanceEntry)
+        .setNetworkPassphrase(getNetworkPhrase(cfg.horizon))
+        .setTimeout(180)
+        .build()
+
+    tx.sign(me)
+
+    try {
+        const txResponse = await server.submitTransaction(tx)
+        const txResult = StellarSdk.xdr.TransactionResult.fromXDR(txResponse.result_xdr, "base64")
+        const results = txResult.result().results()
+        const result = results[0].value().createClaimableBalanceResult()
+        const claim = result.balanceId().toXDR("hex")
+
+        cb(null, claim)
+
+    } catch(e) {
+        u.showErr(e)
+        cb(e)
+    }
+}
+
+const LIVE_HORIZON = "https://horizon.stellar.org/"
+const TEST_HORIZON = "https://horizon-testnet.stellar.org/"
+
+function getNetworkPhrase(horizon) {
+    if(horizon == 'live') {
+        return StellarSdk.Networks.PUBLIC
+    } else {
+        return StellarSdk.Networks.TESTNET
+    }
+}
+
+function getStellarServer(horizon) {
+    if(horizon == 'live') {
+        return new StellarSdk.Server(LIVE_HORIZON)
+    } else {
+        return new StellarSdk.Server(TEST_HORIZON)
+    }
+}
