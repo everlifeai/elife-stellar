@@ -457,7 +457,7 @@ async function createClaimableBalance(req, cfg, acc,  cb) {
         ],
         asset: StellarSdk.Asset.native(),
         amount,
-    });
+    })
 
     const tx = new StellarSdk.TransactionBuilder(account, {fee: StellarSdk.BASE_FEE})
         .addOperation(claimableBalanceEntry)
