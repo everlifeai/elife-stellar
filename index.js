@@ -222,6 +222,10 @@ function startMicroservice(msinfo) {
     svc.on('claimable-balance', (req, cb) => {
         createClaimableBalance(req, msinfo.cfg, msinfo.acc, cb)
     })
+
+    svc.on('pay', (req, cb) =>{     
+        pay(msinfo.cfg, msinfo.acc, req, cb)
+    })
 }
 
 function importNewWallet(msinfo, req, cb) {
@@ -480,6 +484,22 @@ async function createClaimableBalance(req, cfg, acc,  cb) {
         u.showErr(e)
         cb(e)
     }
+}
+
+function pay(cfg, acc, req, cb){
+    if(!cfg || !acc) return cb({ error: 'Wallet not loaded!', nopw: !GOT_USER_PW })
+
+    luminate.stellar.pay(
+        cfg.timeout,
+        cfg.horizon,
+        acc,
+        req.currency,
+        req.amt,
+        {pub:req.to},
+        null,
+        null, (err) =>{
+            cb(err)
+    })
 }
 
 const LIVE_HORIZON = "https://horizon.stellar.org/"
